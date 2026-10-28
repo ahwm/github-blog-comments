@@ -1,0 +1,45 @@
+name = "blog-comments"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# Serves embed.js and admin.html. Requests that don't match a file fall through to the Worker.
+[assets]
+directory = "./public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = ""
+# Replace with the id printed by `npx wrangler d1 create static-comments`.
+database_id = ""
+migrations_dir = "migrations"
+
+# Daily cleanup of expired rate-limit rows.
+[triggers]
+crons = ["0 4 * * *"]
+
+[vars]
+# Comma-separated list of sites allowed to read and post comments.
+ALLOWED_ORIGINS = "https://user.github.io,https://website.dev"
+# "none" = publish immediately, "links" = hold comments containing links, "all" = hold everything.
+MODERATION = "links"
+# Public Turnstile site key. Leave empty to disable Turnstile.
+TURNSTILE_SITE_KEY = ""
+# Max comments per IP per hour.
+RATE_LIMIT_PER_HOUR = "10"
+
+# Email notifications over SMTP. Uncomment and fill in to enable; also set the SMTP_PASS secret.
+# Port 25 is blocked on Workers. Use 587 (STARTTLS) or 465 (TLS).
+SMTP_HOST = ""
+SMTP_PORT = "587"
+SMTP_SECURE = "starttls"            # "starttls", "tls" or "none". Defaults to "tls" on port 465.
+SMTP_USER = ""
+SMTP_FROM = ""  # defaults to SMTP_USER
+SMTP_FROM_NAME = ""
+NOTIFY_EMAIL = ""    # comma-separated recipients
+
+# Secrets (set with `npx wrangler secret put <NAME>`):
+#   ADMIN_TOKEN         required, protects /admin.html and /api/admin/*
+#   HASH_SALT           required, salts IP hashes used for rate limiting
+#   TURNSTILE_SECRET    optional, pairs with TURNSTILE_SITE_KEY
+#   NOTIFY_WEBHOOK_URL  optional, Slack or Discord webhook for new comments
+#   SMTP_PASS           optional, SMTP password or app password for email notifications

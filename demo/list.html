@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Counts Demo</title>
+<style>
+  body { font: 16px/1.6 system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 24px 16px; }
+  @media (prefers-color-scheme: dark) { body { background: #0d1117; color: #e6edf3; } a { color: #4493f8; } }
+  li span { color: #888; margin-left: .5rem; }
+</style>
+</head>
+<body>
+  <h1>Blog index</h1>
+  <ul>
+    <li><a href="/">A static blog post</a> <span><a href="/#comments" data-comment-count>Comments</a></span></li>
+    <li><a href="/rl">Rate limit test page</a> <span data-comment-count="/rl"></span></li>
+    <li><a href="/empty">A post with no comments</a> <span data-comment-count="/empty"></span></li>
+  </ul>
+  <script src="http://localhost:8787/count.js" async></script>
+</body>
+</html>

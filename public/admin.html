@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Comment Moderation</title>
+<style>
+  :root { --fg:#1f2328; --muted:#656d76; --bg:#fff; --soft:#f6f8fa; --border:#d0d7de; --accent:#0969da; --danger:#cf222e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e6edf3; --muted:#8d96a0; --bg:#0d1117; --soft:#161b22; --border:#30363d; --accent:#4493f8; --danger:#f85149; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .75rem; }
+  form { display:flex; gap:.5rem; flex-wrap:wrap; }
+  input { flex:1 1 260px; font:inherit; color:var(--fg); background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:.5rem .7rem; }
+  button { font:inherit; border-radius:6px; padding:.45rem .9rem; cursor:pointer; border:1px solid var(--border); background:var(--soft); color:var(--fg); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--danger); }
+  .card { border:1px solid var(--border); border-radius:8px; padding:.8rem 1rem; margin:0 0 .75rem; background:var(--soft); }
+  .meta { font-size:.85rem; color:var(--muted); display:flex; gap:.75rem; flex-wrap:wrap; }
+  .body { white-space:pre-wrap; overflow-wrap:anywhere; margin:.4rem 0 .6rem; }
+  .row { display:flex; gap:.5rem; }
+  .tag { font-size:.75rem; border:1px solid var(--border); border-radius:999px; padding:0 .5rem; }
+  .muted { color:var(--muted); }
+  #msg { min-height:1.4em; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Comment moderation</h1>
+  <form id="auth">
+    <input id="token" type="password" placeholder="Admin token" autocomplete="current-password" aria-label="Admin token">
+    <button class="primary" type="submit">Load</button>
+  </form>
+  <p id="msg" role="status"></p>
+
+  <h2>Awaiting moderation</h2>
+  <div id="pending"><p class="muted">Enter your token to load.</p></div>
+
+  <h2>Browse a page</h2>
+  <form id="lookup">
+    <input id="pageUrl" type="url" placeholder="https://you.github.io/post/" aria-label="Page URL">
+    <button type="submit">Show comments</button>
+  </form>
+  <div id="thread"></div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let token = sessionStorage.getItem("sc-admin") || "";
+  $("token").value = token;
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + token } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+  }
+
+  function card(c, page) {
+    const div = document.createElement("div");
+    div.className = "card";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const who = document.createElement("strong");
+    who.textContent = c.deleted ? "(deleted)" : c.name;
+    const when = document.createElement("span");
+    when.textContent = new Date(c.createdAt).toLocaleString();
+    const where = document.createElement("a");
+    where.href = "https://" + page + "#comment-" + c.id;
+    where.textContent = page;
+    where.target = "_blank";
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = c.status + (c.parentId ? " · reply" : "");
+    meta.append(who, when, where, tag);
+
+    const body = document.createElement("div");
+    body.className = "body";
+    body.textContent = c.body || "";
+
+    const row = document.createElement("div");
+    row.className = "row";
+    if (c.status === "pending") row.append(btn("Approve", "primary", () => moderate(page, c.id, "approve")));
+    if (!c.deleted) row.append(btn("Delete", "danger", () => confirm("Delete this comment?") && moderate(page, c.id, "delete")));
+
+    div.append(meta, body, row);
+    return div;
+  }
+
+  function btn(label, cls, onclick) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = cls;
+    b.textContent = label;
+    b.onclick = onclick;
+    return b;
+  }
+
+  async function loadPending() {
+    const { items } = await api("/api/admin/pending");
+    const box = $("pending");
+    box.textContent = "";
+    if (!items.length) box.innerHTML = '<p class="muted">Nothing waiting. Nice.</p>';
+    items.forEach((c) => box.append(card(c, c.page)));
+  }
+
+  async function loadThread() {
+    const url = $("pageUrl").value.trim();
+    if (!url) return;
+    const { page, comments } = await api("/api/admin/thread?url=" + encodeURIComponent(url));
+    const box = $("thread");
+    box.textContent = "";
+    if (!comments.length) box.innerHTML = '<p class="muted">No comments on this page.</p>';
+    comments.forEach((c) => box.append(card(c, page)));
+  }
+
+  async function moderate(page, id, action) {
+    try {
+      await api("/api/admin/moderate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page, id, action }),
+      });
+      $("msg").textContent = action === "approve" ? "Approved." : "Deleted.";
+      await loadPending();
+      if ($("pageUrl").value) await loadThread();
+    } catch (e) {
+      $("msg").textContent = e.message;
+    }
+  }
+
+  $("auth").onsubmit = async (e) => {
+    e.preventDefault();
+    token = $("token").value;
+    try {
+      await loadPending();
+      sessionStorage.setItem("sc-admin", token);
+      $("msg").textContent = "";
+    } catch (err) {
+      $("msg").textContent = err.message;
+    }
+  };
+
+  $("lookup").onsubmit = async (e) => {
+    e.preventDefault();
+    try { await loadThread(); } catch (err) { $("msg").textContent = err.message; }
+  };
+
+  if (token) loadPending().catch((e) => ($("msg").textContent = e.message));
+</script>
+</body>
+</html>
