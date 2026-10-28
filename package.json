@@ -12,6 +12,6 @@
   },
   "devDependencies": {
     "serve": "^14.2.4",
-    "wrangler": "^4.146.0"
+    "wrangler": "^4.154.0"
   }
 }
