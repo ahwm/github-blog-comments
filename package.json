@@ -11,7 +11,7 @@
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
-    "serve": "^14.2.4",
+    "serve": "^14.2.7",
     "wrangler": "^4.158.0"
   },
   "overrides": {
